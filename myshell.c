@@ -1,11 +1,25 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #define BUFF_SIZE 4040
 
  void greetings ()
 {
 
     printf("MYSHELL RUNNING\n");
+
+};
+
+ void freeAll (char * chars[])
+{
+
+    for (int i = 1; chars[i] != NULL; i++)
+    {
+
+	free(chars[i]);
+
+    }
 
 };
 
@@ -27,12 +41,25 @@ void leftTrim(char *str)
     str[k] = '\0';
 }
 
- int execute (char * program, char * argv[])
+ int execute (char * program, char * argv[], char** envp)
 {
-printf("execute executing...\n");
-    int n = execve(program, argv, NULL);
-printf("n: %i\n", n);
-    if (n == -1) return 0;
+
+    pid_t pid = fork();
+
+    if (pid == 0)
+    {
+
+        int n = execve(program, argv, envp);
+
+        if (n == -1) return 0;
+
+    } else
+    {
+
+	wait(NULL);
+
+    }
+
 
     return 1;
 
@@ -40,15 +67,14 @@ printf("n: %i\n", n);
 
  void parser (char* command, char programName[], char * argv[])
 {
-printf("parser executing...\n");
 
     int i = 0;
-    int j = 0;
+    int j = 1;
     int k = 0;
 
     leftTrim(command);
 
-    while (command[i] != ' ')
+    while (command[i] != ' ' && command[i] != '\0')
     {
 
 	programName[i] = command[i];
@@ -57,21 +83,40 @@ printf("parser executing...\n");
 
     }
 
+    programName[i] = '\0';
+
+    argv[0] = programName;
+
     i++;
 
     while (command[i] != '\0')
     {
-printf("command[i]: %c\n", command[i]);
 
-	if (command[i] != ' ')
-	{
+	if (command[i] == ' ')
+        {
+
+            if (k > 0)
+	    {
+
+    	        argv[j][k] = '\0';
+
+		j++;
+
+		k = 0;
+
+	    }
+
+	    i++;
+
+	    continue;
+
+	} else
+        {
 
 	    if (argv[j] == NULL)
 	    {
 
-		char buff[BUFF_SIZE];
-
-		argv[j] = buff;
+		argv[j] = malloc(BUFF_SIZE);
 
 	    }
 
@@ -79,21 +124,22 @@ printf("command[i]: %c\n", command[i]);
 
             k++;
 
-	    i++;
-
-	    continue;
+    	    i++;
 
 	}
-printf("arg: %s\n", argv[j]);
-
-
-
-        if (command[i - 1] != ' ') { k = 0; j++; }
-	i++;
 
     }
 
-printf("parser executed\n");
+    if (k > 0)
+    {
+
+	argv[j][k] = '\0';
+
+	j++;
+
+    }
+
+    argv[j] = NULL;
 
 };
 
@@ -101,12 +147,12 @@ printf("parser executed\n");
 {
 
     ssize_t s = read(0, buff, size);
-printf("reader executed\n");
+
     return s;
 
 };
 
- void shell ()
+ void shell (char** envp)
 {
 
     char programName[BUFF_SIZE];
@@ -114,32 +160,44 @@ printf("reader executed\n");
 
     char buff[BUFF_SIZE];
 
-    char cli[3] = {'~', '$', '\0'};
+    char cli[4] = {'~', '$', ' ', '\0'};
 
     greetings();
 
-//    while (1)
-  //  {
+    while (1)
+    {
 
 	write(0, cli, sizeof(cli));
 
         ssize_t s = reader(buff, sizeof(buff));
 
+        for (int i = 0; i < BUFF_SIZE; i++)
+        {
+
+            argv[i] = NULL;
+
+        }
+
+        if (s <= 0) buff[0] = '\0';
+        else buff[s] = '\0';
+
         parser(buff, programName, argv);
 
-        int n = execute(programName, argv);
+        int n = execute(programName, argv, envp);
 
         if (n == -1) printf("Invalid program name: %s\n", programName);
 
-    //}
+        freeAll(argv);
+
+    }
 
 };
 
 
- int main ()
+ int main (int argc, char* argv[], char* envp[])
 {
 
-    shell();
+    shell(envp);
 
     return 0;
 
